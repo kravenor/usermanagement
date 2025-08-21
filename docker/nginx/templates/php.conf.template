@@ -1,0 +1,70 @@
+upstream php-fpm {
+        server ${NGINX_UPSTREAM}:9000;
+}
+
+server {
+    listen ${NGINX_PORT} default_server;
+
+    index index.html index.php;
+    server_name _;
+    
+    client_max_body_size 24000M;
+    charset utf-8;
+    
+    error_page 404 /index.php;
+
+    add_header X-Frame-Options "SAMEORIGIN";
+    add_header X-Content-Type-Options "nosniff";
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location = /robots.txt  { access_log off; log_not_found off; }
+
+    root "${NGINX_WEBROOT}";
+    access_log /var/log/nginx/access.log;
+    error_log /var/log/nginx/error.log;
+
+    location ~* \.(jpg|jpeg|gif|css|png|js|ico|html)$ {
+        access_log on;
+        expires max;
+        log_not_found on;
+    }
+
+    # PHP-FPM Configuration
+    location ~ \.php$ {
+            try_files $uri =404;
+            fastcgi_split_path_info ^(.+\.php)(/.+)$;
+            fastcgi_pass php-fpm;
+            fastcgi_index index.php;
+            include fastcgi_params;
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            fastcgi_param PATH_INFO $fastcgi_path_info;
+            fastcgi_buffers  16 16k;
+            fastcgi_buffer_size  32k;
+            fastcgi_read_timeout 600;
+            #add_header Access-Control-Allow-Origin "*";
+            #add_header Access-Control-Allow-Methods "GET,POST,OPTIONS,DELETE,PUT";
+    }
+    
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ /\.ht {
+            deny all;
+    }
+
+    location ~ /\.(?!well-known).* {
+        deny all;
+    }
+}
+
+
+
+    
+
+
+
+
+   
+
+    

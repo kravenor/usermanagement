@@ -1,0 +1,232 @@
+services:
+  mariadb:
+    image: mariadb:${MARIADB_TAG:-11.4}
+    container_name: "${COMPOSE_PROJECT_NAME:-docker}_mariadb"
+    environment:
+      MYSQL_ROOT_HOST: "%"
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_USER: ${DB_USER:-dbuser}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-dbpassword}
+      MYSQL_DATABASE: ${DB_NAME:-${COMPOSE_PROJECT_NAME:-docker}}
+    volumes:
+      - ./mariadb/data/${COMPOSE_PROJECT_NAME:-docker}:/var/lib/mysql
+    expose:
+      - ${DB_PORT:-3306}:3306
+    ports:
+      - ${DB_PORT:-3306}:3306
+  
+  nginx:
+    build:
+      context: ./nginx
+      network: host
+      args:
+        NGINX_TAG: ${NGINX_TAG:-1.19}
+        USER_ID: 1000
+        GROUP_ID: 1000
+    restart: on-failure
+    container_name: "${COMPOSE_PROJECT_NAME:-docker}_nginx"
+    volumes:
+      - ./nginx/templates:/etc/nginx/templates
+    environment:
+      NGINX_PORT: ${NGINX_PORT:-80}
+      NGINX_WEBROOT: ${NGINX_WEBROOT:-/var/www/html/public}
+    expose:
+      - ${COMPOSE_PORT_HTTP:-80}:${NGINX_PORT:-80}
+      - "${COMPOSE_PORT_HTTPS:-443}"
+    labels:
+      - "traefik.docker.network=proxy"
+      - "traefik.basic.protocol=http"
+
+  nginx_node:
+    extends:
+      service: nginx
+    container_name: "${COMPOSE_PROJECT_NAME:-docker}_nginx_node"
+    environment:
+      NGINX_ENVSUBST_TEMPLATE_NAME: "node.conf"
+      NGINX_UPSTREAM: "node"
+      NGINX_UPSTREAM_PORT: ${NODE_PORT:-3000}
+      NODE_PORT: ${NODE_PORT:-3000}
+    expose:
+      - ${COMPOSE_PORT_HTTP:-80}:${NGINX_PORT:-80}
+      - "${COMPOSE_PORT_HTTPS:-443}"
+      - ${NODE_PORT:-3000}
+
+  nginx_php:
+    extends:
+      service: nginx
+    container_name: "${COMPOSE_PROJECT_NAME:-docker}_nginx_php"
+    environment:
+      NGINX_ENVSUBST_TEMPLATE_NAME: "php.conf"
+      NGINX_UPSTREAM: "php"
+      NGINX_UPSTREAM_PORT: "9000"
+    expose:
+      - ${COMPOSE_PORT_HTTP:-80}:${NGINX_PORT:-80}
+      - "${COMPOSE_PORT_HTTPS:-443}"
+  php:
+    build:
+      context: ./php
+      network: host
+      args:
+        USER_ID: 1000
+        GROUP_ID: 1000
+        PHP_TAG: ${PHP_TAG:-8.1}
+        SENDMAIL_DOMAIN: ${COMPOSE_PROJECT_NAME:-docker}.localhost
+        PHP_SENDMAIL_MAILHUB_HOST: ${PHP_SENDMAIL_MAILHUB_HOST:-mailhog}
+        PHP_SENDMAIL_MAILHUB_PORT: ${PHP_SENDMAIL_MAILHUB_PORT:-1025}
+        PHP_SENDMAIL_PATH: "/usr/bin/msmtp --file /etc/msmtprc --logfile /var/log/msmtp.log -a default -t"
+        XDEBUG_MODES: ${XDEBUG_MODES:-off}
+        XDEBUG_REMOTE_HOST: ${XDEBUG_REMOTE_HOST:-host.docker.internal} # Host machine IP
+        XDEBUG_REMOTE_PORT: ${XDEBUG_REMOTE_PORT:-9003} # IDE/Editor's listener port
+        XDEBUG_IDE_KEY: ${XDEBUG_IDE_KEY:-"docker"} # IDE's filter/listener key
+        XDEBUG_VERSION: ${XDEBUG_VERSION:-0}
+        PHP_EXT_BCMATH: ${PHP_EXT_BCMATH:-0}
+        PHP_EXT_BZ2: ${PHP_EXT_BZ2:-0}
+        PHP_EXT_CALENDAR: ${PHP_EXT_CALENDAR:-0}
+        PHP_EXT_CURL: ${PHP_EXT_CURL:-1}
+        PHP_EXT_EXIF: ${PHP_EXT_EXIF:-0}
+        PHP_EXT_FTP: ${PHP_EXT_FTP:-0}
+        PHP_EXT_GD: ${PHP_EXT_GD:-1}
+        PHP_EXT_GRPC: ${PHP_EXT_GRPC:-0}
+        PHP_EXT_IMAGICK: ${PHP_EXT_IMAGICK:-0}
+        PHP_EXT_INTL: ${PHP_EXT_INTL:-1}
+        PHP_EXT_JSON: ${PHP_EXT_JSON:-1}
+        PHP_EXT_LDAP: ${PHP_EXT_LDAP:-0}
+        PHP_EXT_MBSTRING: ${PHP_EXT_MBSTRING:-1}
+        PHP_EXT_MCRYPT: ${PHP_EXT_MCRYPT:-0}
+        PHP_EXT_MYSQLI: ${PHP_EXT_MYSQLI:-1}
+        PHP_EXT_OPCACHE: ${PHP_EXT_OPCACHE:-1}
+        PHP_EXT_PDO_MYSQL: ${PHP_EXT_PDO_MYSQL:-1}
+        PHP_EXT_PDO_PGSQL: ${PHP_EXT_PDO_PGSQL:-1}
+        PHP_EXT_PDO_SQLSRV: ${PHP_EXT_PDO_SQLSRV:-0}
+        PHP_EXT_PCNTL: ${PHP_EXT_PCNTL:-0}
+        PHP_EXT_REDIS: ${PHP_EXT_REDIS:-0}
+        PHP_EXT_SOAP: ${PHP_EXT_SOAP:-0}
+        PHP_EXT_SOCKET: ${PHP_EXT_SOCKET:-1}
+        PHP_EXT_SSH2: ${PHP_EXT_SSH2:-0}
+        PHP_EXT_XML: ${PHP_EXT_XML:-1}
+        PHP_EXT_XSL: ${PHP_EXT_XSL:-0}
+        PHP_EXT_ZIP: ${PHP_EXT_ZIP:-1}
+        PHP_MAX_INPUT_VARS: ${PHP_MAX_INPUT_VARS:-5000}
+        PHP_MAX_EXECUTION_TIME: ${PHP_MAX_EXECUTION_TIME:-6000}
+        PHP_MEMORY_LIMIT: ${PHP_MEMORY_LIMIT:-"-1"}
+        PHP_OPCACHE_ENABLE: ${PHP_OPCACHE_ENABLE:-1}
+        PHP_OPCACHE_VALIDATE_TIMESTAMPS: ${PHP_OPCACHE_VALIDATE_TIMESTAMPS:-"1"}
+        PHP_OPCACHE_MAX_ACCELERATED_FILES: ${PHP_OPCACHE_MAX_ACCELERATED_FILES:-"10000"}
+        PHP_OPCACHE_MEMORY_CONSUMPTION: ${PHP_OPCACHE_MEMORY_CONSUMPTION:-"192"}
+        PHP_OPCACHE_MAX_WASTED_PERCENTAGE: ${PHP_OPCACHE_MAX_WASTED_PERCENTAGE:-"10"}
+        PHP_UPLOAD_MAX_FILESIZE: ${PHP_UPLOAD_MAX_FILESIZE:-"100M"}
+        PHP_POST_MAX_SIZE: ${PHP_POST_MAX_SIZE:-"100M"}
+        PHP_INI_SCAN_DIR: "/usr/local/etc/php/conf.d:/usr/local/etc/php/includes/custom"
+    container_name: "${COMPOSE_PROJECT_NAME:-docker}_php"
+    restart: "no"
+    expose:
+      - "9000"
+      - ${XDEBUG_REMOTE_PORT:-9003}
+    environment:
+      PHP_INI_SCAN_DIR: "/usr/local/etc/php/conf.d:/usr/local/etc/php/includes/custom"
+      COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME:-docker}
+      PHP_PROJECT_DIST: ${PHP_PROJECT_DIST:-docker}
+      PHP_FPM_CLEAR_ENV: "no"
+      PROJECT_ENV: ${PROJECT_ENV:-docker}
+      PHP_SENDMAIL_PATH: "/usr/bin/msmtp --file /etc/msmtprc --logfile /var/log/msmtp.log -a default -t"
+      PHP_SENDMAIL_MAILHUB_HOST: ${PHP_SENDMAIL_MAILHUB_HOST:-mailhog}
+      PHP_SENDMAIL_MAILHUB_PORT: ${PHP_SENDMAIL_MAILHUB_PORT:-1025}
+      PHP_DB_HOST: ${DB_HOST:-db}
+      PHP_DB_PORT: ${DB_PORT:-5432}
+      PHP_DB_USER: ${DB_USER:-dbuser}
+      PHP_DB_USERNAME: ${DB_USER:-dbuser}
+      PHP_DB_PASSWORD: ${DB_PASSWORD:-dbpassword}
+      PHP_DB_NAME: ${DB_NAME:-${COMPOSE_PROJECT_NAME:-docker}}
+      PHP_DB_DRIVER: ${DB_DRIVER:-pgsql}
+      PHP_DB_CONNECTION: ${DB_DRIVER:-pgsql}
+      PHP_DB_DATABASE: ${DB_NAME:-${COMPOSE_PROJECT_NAME:-docker}}
+      PHP_FPM_USER: ${PHP_FPM_USER:-www-data}
+      PHP_FPM_GROUP: ${PHP_FPM_GROUP:-www-data}
+      PHP_MAX_INPUT_VARS: ${PHP_MAX_INPUT_VARS:-5000}
+      PHP_MAX_EXECUTION_TIME: ${PHP_MAX_EXECUTION_TIME:-6000}
+      PHP_OPCACHE_ENABLE: ${PHP_OPCACHE_ENABLE:-1}
+      PHP_OPCACHE_VALIDATE_TIMESTAMPS: ${PHP_OPCACHE_VALIDATE_TIMESTAMPS:-"1"}
+      PHP_OPCACHE_MAX_ACCELERATED_FILES: ${PHP_OPCACHE_MAX_ACCELERATED_FILES:-"10000"}
+      PHP_OPCACHE_MEMORY_CONSUMPTION: ${PHP_OPCACHE_MEMORY_CONSUMPTION:-"192"}
+      PHP_OPCACHE_MAX_WASTED_PERCENTAGE: ${PHP_OPCACHE_MAX_WASTED_PERCENTAGE:-"10"}
+      PHP_UPLOAD_MAX_FILESIZE: ${PHP_UPLOAD_MAX_FILESIZE:-"100M"}
+      PHP_POST_MAX_SIZE: ${PHP_POST_MAX_SIZE:-"100M"}
+      PHP_MEMORY_LIMIT: ${PHP_MEMORY_LIMIT:-"-1"}
+      COLUMNS: 80 # Set 80 columns for docker exec -it.
+      SIMPLETEST_BASE_URL: "http://be_server"
+      SIMPLETEST_DB: "${DB_DRIVER:-pgsql}://${DB_USER:-dbuser}:${DB_PASSWORD:-dbpassword}@${DB_HOST:-db}/${DB_NAME:-${COMPOSE_PROJECT_NAME:-docker}}_test#tests_"
+      LOG_CHANNEL: ${PHP_LOG_CHANNEL:-stderr}
+      PHP_COMPOSER_VERSION: ${PHP_COMPOSER_VERSION:-2.4.4}
+      PHP_DRUSH_VERSION: ${PHP_DRUSH_VERSION:-""}
+      MAGENTO_ADOBE_ACCESS_KEY_PUBLIC: ${MAGENTO_ADOBE_ACCESS_KEY_PUBLIC:-""}
+      MAGENTO_ADOBE_ACCESS_KEY_PRIVATE: ${MAGENTO_ADOBE_ACCESS_KEY_PRIVATE:-""}
+      PHP_ELASTICSEARCH_ENGINE: ${ELASTICSEARCH_ENGINE:-elasticsearch7}
+      PHP_ELASTICSEARCH_HOST: ${ELASTICSEARCH_HOST:-elasticsearch}
+      PHP_ELASTICSEARCH_PORT: ${ELASTICSEARCH_PORT:-9200}
+      PHP_ELASTICSEARCH_INDEX_PREFIX: ${ELASTICSEARCH_INDEX_PREFIX:-''}
+      PHP_ELASTICSEARCH_SCHEME: ${ELASTICSEARCH_SCHEME:-http:}
+      PHP_REDIS_HOST: ${REDIS_HOST:-redis}
+      PHP_REDIS_PORT: ${REDIS_PORT:-6379}
+      PHP_REDIS_PASSWORD: ${REDIS_PASSWORD:-''}
+      NODE_TAG: ${NODE_TAG:-16.20.2}
+      MAGENTO_ADMIN_EMAIL: ${MAGENTO_ADMIN_EMAIL:-admin@admin.localhost}
+      MAGENTO_SAMPLE_DATA: ${MAGENTO_SAMPLE_DATA:-false}
+      SSH_AUTH_SOCK: ${SSH_AUTH_SOCK:-/ssh-agent}
+    volumes:
+      - ./php/xdebug/tmp:/tmp/xdebug
+      - ./php/docker-entrypoint.d:/docker-entrypoint.d
+    #extra_hosts:
+    #  - "host.docker.internal:host-gateway"
+  node:
+    build:
+      context: ./node
+      network: host
+      args:
+        NODE_TAG: ${NODE_TAG:-20.13.1}
+    container_name: "${COMPOSE_PROJECT_NAME:-docker}_node"
+    volumes:
+      - ../src/fe:/var/www/html:cached
+    environment:
+      NODE_PORT: ${NODE_PORT:-3000}
+      NODE_ENV: ${NODE_ENV:-development}
+    expose:
+      - ${NODE_PORT:-3000}
+      - ${NODE_DEBUG_PORT:-9229}
+    labels:
+      - "traefik.docker.network=proxy"
+      - "traefik.basic.frontend.rule=Host(`node.${COMPOSE_PROJECT_NAME:-docker}.localhost`)"
+      - "traefik.basic.protocol=http"
+  traefik:
+    container_name: ${COMPOSE_PROJECT_NAME:-docker}_traefik
+    image: "traefik:latest"
+    command:
+      - --api.insecure=true
+      - --global.sendAnonymousUsage=false
+      - --api.dashboard=true
+      - --api.insecure=true
+      - --providers.docker=true
+      - --providers.docker.network="${COMPOSE_PROJECT_NAME:-docker}.localhost"
+      - --providers.docker.exposedbydefault=true
+      - --entrypoints.http.address=:${COMPOSE_PORT_HTTP:-80}
+      - --entrypoints.https.address=:${COMPOSE_PORT_HTTPS:-443}
+      - --entrypoints.ws.address=:${NODE_PORT:-3000}
+      - --entrypoints.nodedebug.address=:${NODE_DEBUG_PORT:-9229}
+      - --providers.file.directory=/etc/traefik/docker_conf
+      - --providers.file.watch=true
+      - --providers.docker.swarmMode=false
+      - --log.level=DEBUG
+      - --log.filePath=/var/log/traefik.log
+    ports:
+      - 80:80
+      - 8080:8080
+      - 443:443
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    labels:
+      - "traefik.http.routers.traefik.rule=Host(`traefik.${COMPOSE_PROJECT_NAME:-docker}.localhost`)"
+      - "traefik.http.services.traefik.loadbalancer.server.port=8080"
+networks:
+  default:
+    driver: bridge
+  proxy:
+    name: ${COMPOSE_PROJECT_NAME:-docker}.localhost

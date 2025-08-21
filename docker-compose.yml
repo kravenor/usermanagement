@@ -1,0 +1,110 @@
+services:
+  be:
+    extends:
+      file: docker/common-services.yml
+      service: php
+    pull_policy: build
+    container_name: "${COMPOSE_PROJECT_NAME:-docker}_be"
+    environment:
+      PHP_PROJECT_DIST: ${PHP_PROJECT_DIST:-docker}
+      SIMPLETEST_BASE_URL: http://be.${COMPOSE_PROJECT_NAME:-docker}.localhost
+      SSH_AUTH_SOCK: /ssh-agent
+    volumes:
+      - ./src/be:/var/www/html:cached
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      proxy:
+        aliases:
+          - "be"
+  be_server:
+    extends:
+      file: docker/common-services.yml
+      service: nginx_php
+    container_name: "${COMPOSE_PROJECT_NAME:-docker}_be_server"
+    depends_on:
+      - be
+    environment:
+      NGINX_UPSTREAM: "be"
+    labels:
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-docker}_be.rule=Host(`be.${COMPOSE_PROJECT_NAME:-docker}.localhost`)"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME:-docker}_be.loadbalancer.server.port=80"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-docker}_be.service=${COMPOSE_PROJECT_NAME:-docker}_be"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-docker}_be.entryPoints=http"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-docker}_be-ssl.rule=Host(`be.${COMPOSE_PROJECT_NAME:-docker}.localhost`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-docker}_be-ssl.entryPoints=https"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-docker}_be-ssl.tls=true"
+    volumes:
+      - ./src/be:/var/www/html:cached
+    networks:
+      proxy:
+        aliases:
+          - "be.${COMPOSE_PROJECT_NAME:-docker}.localhost"
+  # Frontend
+  fe:
+    extends:
+      file: docker/common-services.yml
+      service: node
+    container_name: "${COMPOSE_PROJECT_NAME:-docker}_fe"
+    command: sh -c "npm run dev --host"
+    environment:
+      BACKEND_URL: ${BACKEND_URL:-http://be}
+      HOST: "0.0.0.0"
+    networks:
+      proxy:
+        aliases:
+          - "fe"
+    labels:
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-docker}_fe-ws.rule=Host(`fe.${COMPOSE_PROJECT_NAME:-docker}.localhost`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-docker}_fe-ws.entryPoints=ws"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-docker}_fe-nodedebug.rule=Host(`fe.${COMPOSE_PROJECT_NAME:-docker}.localhost`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-docker}_fe-nodedebug.entryPoints=nodedebug"
+
+  fe_server:
+    extends:
+      file: docker/common-services.yml
+      service: nginx_node
+    container_name: "${COMPOSE_PROJECT_NAME:-docker}_fe_server"
+    depends_on:
+      - fe
+    environment:
+      NGINX_UPSTREAM: "fe"
+      NGINX_UPSTREAM_PORT: ${NODE_PORT:-3000}
+    labels:
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-docker}_fe.rule=Host(`fe.${COMPOSE_PROJECT_NAME:-docker}.localhost`)"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME:-docker}_fe.loadbalancer.server.port=80"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-docker}_fe.service=${COMPOSE_PROJECT_NAME:-docker}_fe"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-docker}_fe.entryPoints=http"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-docker}_fe-ssl.rule=Host(`fe.${COMPOSE_PROJECT_NAME:-docker}.localhost`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-docker}_fe-ssl.entryPoints=https"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-docker}_fe-ssl.tls=true"
+    networks:
+      proxy:
+        aliases:
+          - "fe.${COMPOSE_PROJECT_NAME:-docker}.localhost"
+
+  traefik:
+    extends:
+      file: docker/common-services.yml
+      service: traefik
+    security_opt:
+      - apparmor:unconfined
+    networks:
+      proxy:
+        aliases:
+          - be.${COMPOSE_PROJECT_NAME:-docker}.localhost
+          - fe.${COMPOSE_PROJECT_NAME:-docker}.localhost
+  db:
+    extends:
+      file: docker/common-services.yml
+      service: ${DB_SERVICE:-mysql}
+    networks:
+      proxy:
+        aliases:
+          - "db"
+
+networks:
+  default:
+    driver: bridge
+  proxy:
+    name: ${COMPOSE_PROJECT_NAME:-docker}.localhost
