@@ -111,4 +111,25 @@ class UserController extends Controller
         $user->delete();
         return response()->json(['message' => 'User deleted successfully']);
     }
+
+    /**
+     * Delete a user by id
+     *
+     * @param  mixed $request
+     * @return JsonResponse
+     */
+    public function destroyMultiple(Request $request): JsonResponse
+    {
+
+        $ids = $request->input('ids');
+        foreach ($ids as $id) {
+            try {
+                $user = \App\Models\User::findOrFail($id);
+            } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+                continue; // Skip if user not found
+            }
+            $user->delete();
+        }
+        return response()->json(['message' => 'User deleted successfully']);
+    }
 }

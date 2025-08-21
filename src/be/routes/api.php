@@ -21,6 +21,7 @@ Route::prefix('users')->group(function () {
     Route::post('show', [\App\Http\Controllers\UserController::class, 'show']);
     Route::put('update', [\App\Http\Controllers\UserController::class, 'update']);
     Route::delete('delete', [\App\Http\Controllers\UserController::class, 'destroy']);
+    Route::delete('delete-multiple', [\App\Http\Controllers\UserController::class, 'destroyMultiple']);
 })->middleware('auth:api');
 
 

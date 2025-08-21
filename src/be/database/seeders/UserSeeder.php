@@ -16,7 +16,7 @@ class UserSeeder extends Seeder
         User::factory()->create([
             'name' => 'admin',
             'email' => 'admin@prova.com',
-            'password' => Hash::make('password'),
+            'password' => bcrypt('password'),
         ]);
     }
 }

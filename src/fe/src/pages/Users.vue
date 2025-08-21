@@ -3,6 +3,7 @@ import { ref, onMounted } from "vue";
 import { getUsers } from "../api/users";
 import { useAuthStore } from "../store/auth";
 import axios from "axios";
+import { watchEffect } from "vue";
 
 const API_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -18,6 +19,9 @@ const sortBy = ref("id");
 const sortDesc = ref(false);
 const searchQuery = ref("");
 const filteredUsers = ref([]);
+
+const selectedUserIds = ref([]);
+const allSelected = ref(false);
 
 const fetchUsers = async () => {
   loading.value = true;
@@ -99,6 +103,39 @@ const deleteUser = async (userId) => {
   }
 };
 
+const deleteSelectedUsers = async () => {
+  if (selectedUserIds.value.length === 0) return;
+  if (!confirm(`Sei sicuro di voler eliminare ${selectedUserIds.value.length} utenti selezionati?`)) return;
+  try {
+    const token = localStorage.getItem("token");
+    await axios.delete(`${API_URL}/users/delete-multiple`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { ids: selectedUserIds.value },
+    });
+    selectedUserIds.value = [];
+    allSelected.value = false;
+    fetchUsers();
+  } catch (err) {
+    error.value = "Errore durante l'eliminazione degli utenti selezionati";
+    console.error(err);
+  }
+};
+
+const toggleSelectAll = () => {
+  if (allSelected.value) {
+    selectedUserIds.value = filteredUsers.value.map((user) => user.id);
+  } else {
+    selectedUserIds.value = [];
+  }
+};
+
+
+watchEffect(() => {
+  allSelected.value =
+    filteredUsers.value.length > 0 &&
+    filteredUsers.value.every((user) => selectedUserIds.value.includes(user.id));
+});
+
 onMounted(() => {
   fetchUsers();
 });
@@ -107,44 +144,49 @@ onMounted(() => {
 <template>
   <div class="h-dvh dark:bg-gray-900 dark:text-white dark:border-gray-700">
     <div class="container mx-auto px-4 py-8">
-      <div
-        class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-2"
-      >
-        <h1 class="text-2xl font-bold">Lista Utenti</h1>
-        <div class="flex gap-2 items-center w-full sm:w-auto">
-          <router-link
-            v-if="auth.hasRole('admin')"
-            to="/users/add"
-            class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm font-semibold whitespace-nowrap"
-          >
-            + Nuovo Utente
-          </router-link>
-          <div class="relative flex-1">
-            <input
-              type="text"
-              placeholder="Cerca..."
-              @input="debouncedSearch"
-              class="pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full"
-            />
-            <div class="absolute left-3 top-2.5 text-gray-400">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
+        <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-2">
+          <h1 class="text-2xl font-bold">Lista Utenti</h1>
+          <div class="flex gap-2 items-center w-full sm:w-auto">
+            <router-link
+              v-if="auth.hasRole('admin')"
+              to="/users/add"
+              class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm font-semibold whitespace-nowrap"
+            >
+              + Nuovo Utente
+            </router-link>
+            <button
+              v-if="auth.hasRole('admin') && selectedUserIds.length > 0"
+              @click="deleteSelectedUsers"
+              class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-sm font-semibold whitespace-nowrap"
+            >
+              Elimina selezionati ({{ selectedUserIds.length }})
+            </button>
+            <div class="relative flex-1">
+              <input
+                type="text"
+                placeholder="Cerca..."
+                @input="debouncedSearch"
+                class="pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full"
+              />
+              <div class="absolute left-3 top-2.5 text-gray-400">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
       <!-- Loading state -->
       <div v-if="loading" class="text-center py-4">
@@ -170,6 +212,9 @@ onMounted(() => {
           <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
               <tr>
+                <th class="px-4 py-3 text-center">
+                  <input type="checkbox" :checked="allSelected" @change="toggleSelectAll" />
+                </th>
                 <th
                   @click="sort('id')"
                   class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
@@ -212,6 +257,9 @@ onMounted(() => {
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
               <tr v-for="user in filteredUsers" :key="user.id">
+                <td class="px-4 py-4 text-center dark:bg-gray-800 dark:text-white dark:border-gray-700">
+                  <input type="checkbox" :value="user.id" v-model="selectedUserIds" />
+                </td>
                 <td class="px-6 py-4 whitespace-nowrap dark:bg-gray-800 dark:text-white dark:border-gray-700">{{ user.id }}</td>
                 <td class="px-6 py-4 whitespace-nowrap dark:bg-gray-800 dark:text-white dark:border-gray-700">{{ user.name }}</td>
                 <td class="px-6 py-4 whitespace-nowrap dark:bg-gray-800 dark:text-white dark:border-gray-700">{{ user.email }}</td>
