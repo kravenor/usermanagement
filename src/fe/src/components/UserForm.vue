@@ -18,7 +18,7 @@
             required
           />
         </div>
-         <div class="mb-4">
+         <div class="mb-4" v-if="personalProfile">
           <label class="block mb-1 font-semibold">Password</label>
           <input
             v-model="localUser.password"
