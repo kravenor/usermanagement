@@ -1,4 +1,4 @@
 docker/mysql/data/*
 docker/mariadb/data/*
-
 .env
+docker/php/xdebug/*

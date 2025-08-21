@@ -46,7 +46,7 @@ services:
       file: docker/common-services.yml
       service: node
     container_name: "${COMPOSE_PROJECT_NAME:-docker}_fe"
-    command: sh -c "npm run dev --host"
+    command: sh -c "npm run dev -- --host"
     environment:
       BACKEND_URL: ${BACKEND_URL:-http://be}
       HOST: "0.0.0.0"
