@@ -15,6 +15,8 @@ Open backend container with ```docker exec -it ${COMPOSE_PROJECT_NAME}_be bash``
 
 * ```composer install```
 * ```php artisan migrate --seed``` this create base tables and populate with an admin user [admin@prova.com:password]
+* ```php artisan jwt:secret```
+* ```php artisan key:generate```
 
 exit backend container. 
 
